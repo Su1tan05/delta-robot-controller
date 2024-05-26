@@ -14,9 +14,6 @@ link anchor to the centre of the triangle, which is easier to measure.
 """
 
 import math as maths
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.pyplot as plt
-import numpy as np
 
 class DeltaPositionError(Exception):
     pass
@@ -115,4 +112,4 @@ class SimulatedDeltaBot(object):
 
             return theta1, theta2, theta3
         except DeltaPositionError:
-            return 0,0,0
+            return None,None,None

@@ -7,6 +7,7 @@ import json
 import ast
 import numpy as np
 from scipy.interpolate import CubicSpline
+import re
 
 rospy.init_node('trajectory_contraller_node', disable_signals=True, anonymous=True)
 motor1_angle_pub = rospy.Publisher('/set_angle_motor1', Float32, queue_size=10)
@@ -44,10 +45,46 @@ def interpolate (trajectory_points, N):
     return [theta1Interpolated, theta2Interpolated, theta3Interpolated, xnew, theta1, theta2, theta3]
 
 
+
 def set_trajectory_callback(data):
-    data = json.loads(str(data.data).replace("\\n", "").replace("\\", ""))
-    print(data['trajectoryPoints'][2])
-    calculated_trajectory_pub.publish(str(data['trajectoryPoints'][1]))
+    try:
+        # Assuming data.data is a string representation of JSON
+        data_str = data.data
+
+        # Clean up the JSON string by replacing escape sequences and removing trailing commas
+        cleaned_data_str = data_str.replace('\\r\\n', '').replace('\\', '')
+
+        # Remove trailing commas using a simple regex
+        cleaned_data_str = re.sub(r',\s*(\]|\})', r'\1', cleaned_data_str)
+
+        # Load JSON data
+        data_json = json.loads(cleaned_data_str)
+
+        # Interpolate trajectory points
+        interpolated_points = interpolate(data_json['trajectoryPoints'], 10)
+
+        # Convert interpolated points to a list if they are NumPy arrays
+        if isinstance(interpolated_points, np.ndarray):
+            interpolated_points = interpolated_points.tolist()
+        else:
+            interpolated_points = [point.tolist() if isinstance(point, np.ndarray) else point for point in interpolated_points]
+
+        # Publish the interpolated points
+        calculated_trajectory_pub.publish(json.dumps(interpolated_points))
+
+        if (data_json['moveRobot'] is True):
+            theta1_list = interpolated_points[0]
+            theta2_list = interpolated_points[1]
+            theta3_list = interpolated_points[2]
+            rospy.logerr(theta3_list)
+
+
+    except json.JSONDecodeError as e:
+        rospy.logerr(f"JSON decoding failed: {e}")
+    except KeyError as e:
+        rospy.logerr(f"Missing key in data: {e}")
+    except Exception as e:
+        rospy.logerr(f"Unexpected error: {e}")
 
 trajectory_sub = rospy.Subscriber('/trajectory_points', String, set_trajectory_callback, queue_size=10)
 position_pub = rospy.Publisher('/robot_position', Float32MultiArray , queue_size=10)
